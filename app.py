@@ -1,6 +1,7 @@
 import streamlit as st
 import time
 from supabase import create_client, Client
+import json
 
 # ==========================================
 # Page Configuration & Custom CSS
@@ -80,10 +81,9 @@ st.markdown("""
         border: 1px solid rgba(255, 255, 255, 0.08);
         border-radius: 20px;
         padding: 2.5rem;
-        margin-bottom: 2rem;
+        margin-bottom: 1.5rem;
         box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
     }
-    .styled-card.input-panel { background: rgba(15, 15, 20, 0.7); padding: 4rem; display: flex; flex-direction: column; align-items: center; }
     
     /* Section Headers */
     h2.section-header { font-size: 2rem; font-weight: 700; color: #ffffff; margin-bottom: 2rem; border-bottom: 2px solid rgba(168, 129, 255, 0.3); display: inline-block; padding-bottom: 0.5rem; }
@@ -98,6 +98,7 @@ st.markdown("""
         font-size: 1.1rem !important;
         font-weight: 600 !important;
         border-radius: 12px !important;
+        width: 100% !important;
     }
     
     /* Data Points */
@@ -105,16 +106,13 @@ st.markdown("""
     .data-point { display: flex; justify-content: space-between; align-items: center; padding: 1rem; background: rgba(0, 0, 0, 0.3); border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.05); }
     .data-label { font-weight: 500; color: #e0e0e0; font-size: 0.95rem; }
     .data-value { font-weight: 600; color: #ffffff; }
-    .score-circle { display: inline-flex; justify-content: center; align-items: center; width: 100px; height: 100px; border-radius: 50%; border: 4px solid #a881ff; font-size: 2.2rem; font-weight: 800; color: #ffffff; box-shadow: 0 0 20px rgba(168, 129, 255, 0.2); }
+    .score-circle { display: inline-flex; justify-content: center; align-items: center; width: 100px; height: 100px; border-radius: 50%; border: 4px solid #a881ff; font-size: 2.2rem; font-weight: 800; color: #ffffff; box-shadow: 0 0 20px rgba(168, 129, 255, 0.2); margin: 0 auto; }
     .criticality-tag { display: inline-block; padding: 0.4rem 1rem; border-radius: 20px; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; }
     .critical { background: rgba(244, 63, 94, 0.2); color: #fb7185; border: 1px solid rgba(244, 63, 94, 0.3); }
     .moderate { background: rgba(251, 191, 36, 0.2); color: #fcd34d; border: 1px solid rgba(251, 191, 36, 0.3); }
 </style>
 """, unsafe_allow_html=True)
 
-# Helper function
-def render_data_point(label, value, extra_class=""):
-    st.markdown(f'<div class="data-point"><span class="data-label">{label}</span><span class="data-value {extra_class}">{value}</span></div>', unsafe_allow_html=True)
 
 # ==========================================
 # Real AI Brain: Google Gemini Integration
@@ -122,7 +120,6 @@ def render_data_point(label, value, extra_class=""):
 def generate_ats_report(jd_text, pdf_file):
     import PyPDF2
     from google import genai
-    import json
     
     pdf_reader = PyPDF2.PdfReader(pdf_file)
     resume_text = ""
@@ -173,7 +170,6 @@ def generate_ats_report(jd_text, pdf_file):
         if "gaps_and_strategy" not in report_data: report_data["gaps_and_strategy"] = []
         return report_data
     except Exception as e:
-        # NOW it will print the EXACT reason it failed in the strategy box!
         return {
             "ats_score": 0,
             "critical_keywords": [{"keyword": "System Error", "required_level": "High"}],
@@ -250,12 +246,13 @@ def main():
     
     if st.session_state.user is not None:
         st.markdown('<h2 class="section-header" style="text-align: center; display: block; margin-top: 4rem;">Optimize Your Strategy</h2>', unsafe_allow_html=True)
-        st.markdown('<div class="styled-card-row">', unsafe_allow_html=True)
         
+        # Input Section
         with st.container():
             input_container, _ = st.columns([1.5, 0.5])
             with input_container:
-                st.markdown('<div class="styled-card input-panel">', unsafe_allow_html=True)
+                st.markdown('<div style="text-align: center; margin-bottom: 2rem;"><h3 class="card-title" style="font-size: 2rem;">Analyze Your Application</h3><p class="card-description">Submit your target job description and your resume for a zero-shot AI evaluation.</p></div>', unsafe_allow_html=True)
+                
                 jd_input = st.text_area("TARGET JOB DESCRIPTION", placeholder="Paste the Job Description here...", height=200, key="jd_text_area", label_visibility="collapsed")
                 
                 col_file, _ = st.columns([2, 1])
@@ -263,10 +260,9 @@ def main():
                     st.markdown('<br><span class="data-label" style="margin-bottom: 10px; display:block;">UPLOAD RESUME (PDF)</span>', unsafe_allow_html=True)
                     uploaded_pdf = st.file_uploader("", type=["pdf"], key="resume_uploader", label_visibility="collapsed")
                 
-                st.markdown('<div style="margin-top: 3rem;">', unsafe_allow_html=True)
+                st.markdown('<div style="margin-top: 2rem;">', unsafe_allow_html=True)
                 analyze_button = st.button("🚀 Generate Report", key="ats_analyze_button")
-                st.markdown('</div></div>', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
+                st.markdown('</div>', unsafe_allow_html=True)
 
         report_container = st.empty()
         if analyze_button and jd_input and uploaded_pdf:
@@ -276,77 +272,104 @@ def main():
                 status.update(label="Analysis finalized!", state="complete", expanded=False)
             
             with report_container.container():
-                st.markdown('<h2 class="section-header">AI Evaluation Report</h2>', unsafe_allow_html=True)
-                st.markdown('<div class="styled-card-row">', unsafe_allow_html=True)
+                st.markdown('<h2 class="section-header" style="margin-top: 4rem;">AI Evaluation Report</h2>', unsafe_allow_html=True)
                 
-                st.markdown('<div class="styled-card">', unsafe_allow_html=True)
                 col_score, col_keywords = st.columns([1, 1])
                 
+                # Render Score Card
                 with col_score:
-                    st.markdown(f'<h3 class="card-title">ATS Match Score</h3><div class="card-description">Overall performance heuristic.</div><div class="score-circle">{report_data.get("ats_score", 0)}%</div>', unsafe_allow_html=True)
+                    score = report_data.get("ats_score", 0)
+                    st.markdown(f'''
+                    <div class="styled-card" style="text-align: center;">
+                        <h3 class="card-title">ATS Match Score</h3>
+                        <div class="card-description">Overall performance heuristic.</div>
+                        <div style="display: flex; justify-content: center;"><div class="score-circle">{score}%</div></div>
+                    </div>
+                    ''', unsafe_allow_html=True)
                 
+                # Render Keywords Card
                 with col_keywords:
-                    st.markdown('<h3 class="card-title">Critical Keywords</h3><div class="card-description">Top skills priority analysis.</div><div class="mock-panel-group">', unsafe_allow_html=True)
+                    kw_html = '''
+                    <div class="styled-card">
+                        <h3 class="card-title">Critical Keywords</h3>
+                        <div class="card-description">Top skills priority analysis.</div>
+                        <div class="mock-panel-group">
+                    '''
                     for kw_data in report_data.get("critical_keywords", []):
-                        render_data_point(kw_data.get("keyword", "N/A"), f"Req: {kw_data.get('required_level', 'Unknown').upper()}")
-                    st.markdown('</div></div>', unsafe_allow_html=True)
+                        kw_html += f'<div class="data-point"><span class="data-label">{kw_data.get("keyword", "N/A")}</span><span class="data-value">Req: {kw_data.get("required_level", "Unknown").upper()}</span></div>'
+                    kw_html += '</div></div>'
+                    st.markdown(kw_html, unsafe_allow_html=True)
                 
-                st.markdown('<div class="styled-card">', unsafe_allow_html=True)
-                st.markdown('<h3 class="card-title">Actionable Strategy</h3><div class="card-description">Recommendations to improve your match.</div>', unsafe_allow_html=True)
-                
+                # Render Strategy Card
+                strat_html = '''
+                <div class="styled-card">
+                    <h3 class="card-title">Actionable Strategy</h3>
+                    <div class="card-description">Recommendations to improve your match.</div>
+                '''
                 for gap in report_data.get("gaps_and_strategy", []):
-                    st.markdown(f'<div class="data-point" style="flex-direction: column; align-items: flex-start; gap: 10px; margin-bottom: 10px;"><div style="display: flex; justify-content: space-between; width: 100%;"><span class="data-label">{gap.get("category", "Detail").upper()}</span><span class="criticality-tag {gap.get("criticality", "Moderate").lower()}">{gap.get("criticality", "Moderate")}</span></div><span style="color: #a1a1aa; font-size: 0.95rem;">{gap.get("strategy", "")}</span></div>', unsafe_allow_html=True)
-                st.markdown('</div></div>', unsafe_allow_html=True) 
+                    cat = gap.get("category", "Detail").upper()
+                    crit = gap.get("criticality", "Moderate")
+                    strat = gap.get("strategy", "")
+                    strat_html += f'<div class="data-point" style="flex-direction: column; align-items: flex-start; gap: 10px; margin-bottom: 10px;"><div style="display: flex; justify-content: space-between; width: 100%;"><span class="data-label">{cat}</span><span class="criticality-tag {crit.lower()}">{crit}</span></div><span style="color: #a1a1aa; font-size: 0.95rem;">{strat}</span></div>'
+                strat_html += '</div>'
+                st.markdown(strat_html, unsafe_allow_html=True)
 
         # ==========================================
-        # The Pricing Plans (Restored!)
+        # The Pricing Plans
         # ==========================================
         st.markdown('<div style="text-align: center; margin-top: 6rem;"><h2 class="section-header">Discover our pricing plans</h2><p class="card-description">Pick a plan to grow your brand and business</p></div>', unsafe_allow_html=True)
-        st.markdown('<div class="styled-card-row">', unsafe_allow_html=True)
         
         col_p1, col_p2, col_p3 = st.columns([1,1,1])
         
         with col_p1:
-            st.markdown('<div class="styled-card">', unsafe_allow_html=True)
-            st.markdown('<h3 class="card-title">Basic</h3><div class="card-description">Free starter performance tools.</div>', unsafe_allow_html=True)
-            st.markdown('<div style="font-size: 2.5rem; font-weight: 800; color: #ffffff; margin-bottom: 2rem;">$0<span style="font-size: 1rem; color: #a1a1aa; font-weight: 500;">/mo</span></div>', unsafe_allow_html=True)
-            st.markdown('<div class="mock-panel-group" style="margin-bottom: 2rem;">', unsafe_allow_html=True)
-            render_data_point("Basic Formatting Checks", "Included")
-            render_data_point("Monthly ATS Scans", "5 Scans")
-            render_data_point("Community Support", "Included")
-            st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown('''
+            <div class="styled-card">
+                <h3 class="card-title">Basic</h3>
+                <div class="card-description">Free starter performance tools.</div>
+                <div style="font-size: 2.5rem; font-weight: 800; color: #ffffff; margin-bottom: 2rem;">$0<span style="font-size: 1rem; color: #a1a1aa; font-weight: 500;">/mo</span></div>
+                <div class="mock-panel-group" style="margin-bottom: 2rem;">
+                    <div class="data-point"><span class="data-label">Basic Formatting Checks</span><span class="data-value">Included</span></div>
+                    <div class="data-point"><span class="data-label">Monthly ATS Scans</span><span class="data-value">5 Scans</span></div>
+                    <div class="data-point"><span class="data-label">Community Support</span><span class="data-value">Included</span></div>
+                </div>
+            </div>
+            ''', unsafe_allow_html=True)
             if st.button("Current Plan", key="btn_basic"):
                 st.info("You are currently using the Free Basic tier.")
-            st.markdown('</div>', unsafe_allow_html=True)
             
         with col_p2:
-            st.markdown('<div class="styled-card" style="border-color: rgba(217, 70, 239, 0.4); box-shadow: 0 0 30px rgba(217, 70, 239, 0.1);">', unsafe_allow_html=True)
-            st.markdown('<h3 class="card-title">Premium</h3><div class="card-description">Detailed performance analysis.</div>', unsafe_allow_html=True)
-            st.markdown('<div style="font-size: 2.5rem; font-weight: 800; color: #ffffff; margin-bottom: 2rem;">$9.99<span style="font-size: 1rem; color: #a1a1aa; font-weight: 500;">/mo</span></div>', unsafe_allow_html=True)
-            st.markdown('<div class="mock-panel-group" style="margin-bottom: 2rem;">', unsafe_allow_html=True)
-            render_data_point("Advanced NLP Analysis", "Included")
-            render_data_point("Monthly ATS Scans", "Unlimited")
-            render_data_point("Keyword Prioritization", "Included")
-            render_data_point("Priority Email Support", "Included")
-            st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown('''
+            <div class="styled-card" style="border-color: rgba(217, 70, 239, 0.4); box-shadow: 0 0 30px rgba(217, 70, 239, 0.1);">
+                <h3 class="card-title">Premium</h3>
+                <div class="card-description">Detailed performance analysis.</div>
+                <div style="font-size: 2.5rem; font-weight: 800; color: #ffffff; margin-bottom: 2rem;">$9.99<span style="font-size: 1rem; color: #a1a1aa; font-weight: 500;">/mo</span></div>
+                <div class="mock-panel-group" style="margin-bottom: 2rem;">
+                    <div class="data-point"><span class="data-label">Advanced NLP Analysis</span><span class="data-value">Included</span></div>
+                    <div class="data-point"><span class="data-label">Monthly ATS Scans</span><span class="data-value">Unlimited</span></div>
+                    <div class="data-point"><span class="data-label">Keyword Prioritization</span><span class="data-value">Included</span></div>
+                    <div class="data-point"><span class="data-label">Priority Email Support</span><span class="data-value">Included</span></div>
+                </div>
+            </div>
+            ''', unsafe_allow_html=True)
             if st.button("Upgrade to Premium", key="btn_prem"):
                 st.success("Redirecting to secure checkout... 💳")
                 st.balloons()
-            st.markdown('</div>', unsafe_allow_html=True)
             
         with col_p3:
-            st.markdown('<div class="styled-card">', unsafe_allow_html=True)
-            st.markdown('<h3 class="card-title">Enterprise</h3><div class="card-description">Full structural strategizing.</div>', unsafe_allow_html=True)
-            st.markdown('<div style="font-size: 2.5rem; font-weight: 800; color: #ffffff; margin-bottom: 2rem;">$99.0<span style="font-size: 1rem; color: #a1a1aa; font-weight: 500;">/mo</span></div>', unsafe_allow_html=True)
-            st.markdown('<div class="mock-panel-group" style="margin-bottom: 2rem;">', unsafe_allow_html=True)
-            render_data_point("Custom ATS Rulesets", "Included")
-            render_data_point("API Integration Access", "Included")
-            render_data_point("Dedicated Account Manager", "Included")
-            st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown('''
+            <div class="styled-card">
+                <h3 class="card-title">Enterprise</h3>
+                <div class="card-description">Full structural strategizing.</div>
+                <div style="font-size: 2.5rem; font-weight: 800; color: #ffffff; margin-bottom: 2rem;">$99.0<span style="font-size: 1rem; color: #a1a1aa; font-weight: 500;">/mo</span></div>
+                <div class="mock-panel-group" style="margin-bottom: 2rem;">
+                    <div class="data-point"><span class="data-label">Custom ATS Rulesets</span><span class="data-value">Included</span></div>
+                    <div class="data-point"><span class="data-label">API Integration Access</span><span class="data-value">Included</span></div>
+                    <div class="data-point"><span class="data-label">Dedicated Account Manager</span><span class="data-value">Included</span></div>
+                </div>
+            </div>
+            ''', unsafe_allow_html=True)
             if st.button("Contact Sales", key="btn_ent"):
                 st.toast("Thank you! Our enterprise team will email you shortly.", icon="📩")
-            st.markdown('</div>', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
 
     # Footer
     st.markdown('<div style="text-align: center; color: #71717a; padding: 2rem; border-top: 1px solid rgba(255,255,255,0.05); margin-top: 4rem;">© 2026 BK.ai. Engineered by Kalpana.</div>', unsafe_allow_html=True)
