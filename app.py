@@ -215,14 +215,15 @@ with st.sidebar:
                     st.session_state.user = response.user
                     st.rerun() # Refresh the page immediately
                 except Exception as e:
-                    st.error("Invalid credentials.")
+                    # NEW: This will tell you exactly why it's failing!
+                    st.error(f"Error: {str(e)}") 
         with col2:
             if st.button("Sign Up"):
                 try:
                     response = supabase.auth.sign_up({"email": auth_email, "password": auth_password})
                     st.success("Account created! Please Sign In.")
                 except Exception as e:
-                    # WE CHANGED THIS LINE so it tells you exactly what went wrong!
+                    # NEW: This will tell you exactly why it's failing!
                     st.error(f"Error: {str(e)}") 
                     
     # If the user IS logged in, show their profile and logout button
