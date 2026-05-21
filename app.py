@@ -222,7 +222,8 @@ with st.sidebar:
                     response = supabase.auth.sign_up({"email": auth_email, "password": auth_password})
                     st.success("Account created! Please Sign In.")
                 except Exception as e:
-                    st.error("Error creating account.")
+                    # WE CHANGED THIS LINE so it tells you exactly what went wrong!
+                    st.error(f"Error: {str(e)}") 
                     
     # If the user IS logged in, show their profile and logout button
     else:
