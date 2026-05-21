@@ -51,7 +51,7 @@ def generate_ats_report(jd_text, pdf_file):
     # 4. Generate the response
     try:
         response = client.models.generate_content(
-            model='gemini-1.5-flash',
+            model='gemini-2.5-flash',
             contents=prompt
         )
         
