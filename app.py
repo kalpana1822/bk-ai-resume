@@ -161,8 +161,9 @@ def generate_ats_report(jd_text, pdf_file):
             model='gemini-2.5-flash',
             contents=prompt
         )
-        clean_json = response.text.replace('
-```json', '').replace('```', '').strip()
+        
+        # FIXED LINE: Removed the broken string split and correctly extract the JSON response
+        clean_json = response.text.replace('```json', '').replace('```', '').strip()
         report_data = json.loads(clean_json)
         
         if "ats_score" not in report_data: report_data["ats_score"] = "N/A"
