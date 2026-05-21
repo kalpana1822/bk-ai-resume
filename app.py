@@ -1,58 +1,83 @@
 import streamlit as st
-import random
 import time
 
-# Helper function to mock AI report generation
+# ==========================================
+# Real AI Brain: Google Gemini Integration
+# ==========================================
 def generate_ats_report(jd_text, pdf_file):
-    # Simulate processing time
-    time.sleep(2) 
+    import PyPDF2
+    from google import genai
+    import json
     
-    # Analyze the input (purely mock for this example)
-    jd_length = len(jd_text) if jd_text else 0
-    jd_sentiment = "positive" if jd_length > 100 else "generic"
-    
-    # Make up critical ATS rules and data points
-    ats_score = random.randint(70, 95)
-    critical_keywords = [
-        {"keyword": "Software Engineering Principles", "resume_count": random.randint(0, 3), "required_level": "high"},
-        {"keyword": "Python & Data Science Stack", "resume_count": random.randint(0, 2), "required_level": "very high"},
-        {"keyword": "Cloud Architectures (AWS/Azure)", "resume_count": random.randint(0, 2), "required_level": "medium-high"},
-        {"keyword": "Agile Methodologies", "resume_count": random.randint(0, 1), "required_level": "medium"},
-    ]
-    
-    formatting_check = {
-        "standard_headings": "Pass",
-        "selectable_text": "Pass",
-        "simple_fonts": "Pass",
-        "clear_chronological_order": "Pass",
-        "correct_date_formats": "Needs Correction (Format is Month/Year, e.g., '08/2021')",
-    }
-    
-    gaps_and_strategy = [
-        {
-            "category": "Experience Detail",
-            "observation": "Several project descriptions are listed without specific, quantifiable results.",
-            "strategy": "Revise the Experience section to quantify achievements. Use numbers, percentages, and metrics to demonstrate impact.",
-            "criticality": "Critical"
-        },
-        {
-            "category": "Skill Prioritization",
-            "observation": "While the resume lists all skills from the JD, the prioritization is off.",
-            "strategy": "Highlight 'Python' and 'AWS' more prominently in the Skills and Project sections.",
-            "criticality": "Moderate"
-        },
-    ]
+    # 1. Extract text from the uploaded PDF
+    pdf_reader = PyPDF2.PdfReader(pdf_file)
+    resume_text = ""
+    for page in pdf_reader.pages:
+        page_text = page.extract_text()
+        if page_text:
+            resume_text += page_text + "\n"
 
-    report = {
-        "ats_score": ats_score,
-        "critical_keywords": critical_keywords,
-        "formatting_check": formatting_check,
-        "gaps_and_strategy": gaps_and_strategy,
-    }
-    
-    return report
+    # 2. Connect to Google Gemini using Streamlit Secrets
+    try:
+        client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
+    except Exception as e:
+        st.error("⚠️ System Alert: API Key missing. Please add GEMINI_API_KEY to your Streamlit Cloud Secrets.")
+        st.stop()
 
-# Page config
+    # 3. Give Gemini explicit instructions to return structured JSON data
+    prompt = f"""
+    You are an expert ATS optimization scanner and senior technical recruiter.
+    Analyze this Resume against this Job Description.
+    
+    Resume Text:
+    {resume_text}
+    
+    Job Description:
+    {jd_text}
+    
+    Return ONLY a raw JSON object (no markdown formatting, no ```json blocks) with this exact structure:
+    {{
+        "ats_score": [A number between 0 and 100 representing the match],
+        "critical_keywords": [
+            {{"keyword": "[Missing or required skill]", "required_level": "[High/Medium/Low]"}},
+            {{"keyword": "[Missing or required skill]", "required_level": "[High/Medium/Low]"}}
+        ],
+        "gaps_and_strategy": [
+            {{"category": "[Area of improvement]", "strategy": "[Specific advice to fix it]", "criticality": "[Critical/Moderate/Low]"}}
+        ]
+    }}
+    """
+    
+    # 4. Generate the response
+    try:
+        response = client.models.generate_content(
+            model='gemini-1.5-flash',
+            contents=prompt
+        )
+        
+        # 5. Clean up the response and convert it to a Python dictionary
+        clean_json = response.text.replace('```json', '').replace('```', '').strip()
+        report_data = json.loads(clean_json)
+        
+        # Ensure fallback defaults if AI misses a key
+        if "ats_score" not in report_data: report_data["ats_score"] = "N/A"
+        if "critical_keywords" not in report_data: report_data["critical_keywords"] = []
+        if "gaps_and_strategy" not in report_data: report_data["gaps_and_strategy"] = []
+        
+        return report_data
+        
+    except Exception as e:
+        # Fallback if the AI fails or returns invalid JSON
+        return {
+            "ats_score": 0,
+            "critical_keywords": [{"keyword": "System Error", "required_level": "High"}],
+            "gaps_and_strategy": [{"category": "Error", "strategy": f"Failed to parse response: {str(e)}", "criticality": "Critical"}]
+        }
+
+
+# ==========================================
+# Page Configuration & Custom CSS
+# ==========================================
 st.set_page_config(
     page_title="BK.ai | Intelligent Resume Strategist",
     page_icon="✨",
@@ -60,7 +85,6 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Custom CSS for the Neon/Dark Glassmorphism aesthetic + Sidebar styling
 st.markdown("""
 <style>
     /* Global style: Dark base with Neon glowing orbs */
@@ -95,10 +119,6 @@ st.markdown("""
         display: flex;
         align-items: center;
         margin-bottom: 3rem;
-    }
-    .app-title-container img {
-        width: 50px;
-        margin-right: 1.5rem;
     }
     
     /* Typography Overhauls */
@@ -279,6 +299,7 @@ st.markdown("""
 def render_data_point(label, value, extra_class=""):
     st.markdown(f'<div class="data-point"><span class="data-label">{label}</span><span class="data-value {extra_class}">{value}</span></div>', unsafe_allow_html=True)
 
+
 # ==========================================
 # Sidebar Support Configuration
 # ==========================================
@@ -365,7 +386,10 @@ def main():
     
     if analyze_button and jd_input and uploaded_pdf:
         with st.status("🔮 Intelligent Strategist analyzing details...", expanded=True) as status:
-            st.write("📄 Mapping resume structure against JD criteria...")
+            st.write("📄 Extracting resume data...")
+            st.write("🧠 Engaging Gemini AI models...")
+            
+            # Fetch real data from the AI
             report_data = generate_ats_report(jd_input, uploaded_pdf)
             status.update(label="Analysis finalized!", state="complete", expanded=False)
         
@@ -378,13 +402,14 @@ def main():
             col_score, col_keywords = st.columns([1, 1])
             
             with col_score:
-                st.markdown(f'<h3 class="card-title">ATS Match Score</h3><div class="card-description">Overall performance heuristic.</div><div class="score-circle">{report_data["ats_score"]}%</div>', unsafe_allow_html=True)
+                st.markdown(f'<h3 class="card-title">ATS Match Score</h3><div class="card-description">Overall performance heuristic.</div><div class="score-circle">{report_data.get("ats_score", 0)}%</div>', unsafe_allow_html=True)
             
             with col_keywords:
                 st.markdown('<h3 class="card-title">Critical Keywords</h3><div class="card-description">Top skills priority analysis.</div>', unsafe_allow_html=True)
                 st.markdown('<div class="mock-panel-group">', unsafe_allow_html=True)
-                for kw_data in report_data["critical_keywords"]:
-                    render_data_point(kw_data["keyword"], f"Req: {kw_data['required_level'].upper()}")
+                for kw_data in report_data.get("critical_keywords", []):
+                    req_level = kw_data.get('required_level', 'Unknown')
+                    render_data_point(kw_data.get("keyword", "N/A"), f"Req: {req_level.upper()}")
                 st.markdown('</div>', unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True) 
             
@@ -392,15 +417,16 @@ def main():
             st.markdown('<div class="styled-card">', unsafe_allow_html=True)
             st.markdown('<h3 class="card-title">Actionable Strategy</h3><div class="card-description">Recommendations to improve your match.</div>', unsafe_allow_html=True)
             
-            for gap in report_data["gaps_and_strategy"]:
+            for gap in report_data.get("gaps_and_strategy", []):
+                category = gap.get("category", "Detail").upper()
+                criticality = gap.get("criticality", "Moderate")
+                strategy = gap.get("strategy", "")
+                
                 st.markdown(f'<div class="data-point" style="flex-direction: column; align-items: flex-start; gap: 10px; margin-bottom: 10px;">', unsafe_allow_html=True)
-                st.markdown(f'<div style="display: flex; justify-content: space-between; width: 100%;"><span class="data-label">{gap["category"].upper()}</span><span class="criticality-tag {gap["criticality"].lower()}">{gap["criticality"]}</span></div>', unsafe_allow_html=True)
-                st.markdown(f'<span style="color: #a1a1aa; font-size: 0.95rem;">{gap["strategy"]}</span>', unsafe_allow_html=True)
+                st.markdown(f'<div style="display: flex; justify-content: space-between; width: 100%;"><span class="data-label">{category}</span><span class="criticality-tag {criticality.lower()}">{criticality}</span></div>', unsafe_allow_html=True)
+                st.markdown(f'<span style="color: #a1a1aa; font-size: 0.95rem;">{strategy}</span>', unsafe_allow_html=True)
                 st.markdown('</div>', unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True) 
-            
-    elif not analyze_button:
-        pass # Keep output completely hidden until button is clicked.
 
     # Pricing Section
     st.markdown('<div style="text-align: center; margin-top: 6rem;"><h2 class="section-header">Discover our pricing plans</h2><p class="card-description">Pick a plan to grow your brand and business</p></div>', unsafe_allow_html=True)
