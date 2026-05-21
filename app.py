@@ -90,7 +90,7 @@ st.markdown("""
     h3.card-title { font-size: 1.5rem; font-weight: 600; color: #ffffff; margin-bottom: 1rem; }
     .card-description { font-size: 1rem; color: #a1a1aa; margin-bottom: 2rem; line-height: 1.6; }
     
-    /* Buttons */
+    /* Default Buttons */
     .stButton > button {
         background: linear-gradient(135deg, #7c3aed 0%, #d946ef 100%) !important;
         border: none !important;
@@ -99,6 +99,24 @@ st.markdown("""
         font-weight: 600 !important;
         border-radius: 12px !important;
         width: 100% !important;
+    }
+
+    /* MASSIVE DOWNLOAD BUTTON STYLING */
+    [data-testid="stDownloadButton"] > button {
+        background: linear-gradient(135deg, #10b981 0%, #047857 100%) !important;
+        font-size: 1.8rem !important; /* Huge Font */
+        padding: 1.5rem 2rem !important; /* Thick padding */
+        font-weight: 900 !important;
+        border-radius: 16px !important;
+        text-transform: uppercase !important;
+        letter-spacing: 2px !important;
+        box-shadow: 0 10px 30px rgba(16, 185, 129, 0.4) !important;
+        border: 2px solid #34d399 !important;
+        transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+    }
+    [data-testid="stDownloadButton"] > button:hover {
+        transform: translateY(-4px) !important;
+        box-shadow: 0 15px 40px rgba(16, 185, 129, 0.6) !important;
     }
     
     /* Data Points */
@@ -162,7 +180,6 @@ def generate_ats_report(jd_text, pdf_file):
             contents=prompt
         )
         
-        # FIXED LINE: Removed the broken string split and correctly extract the JSON response
         clean_json = response.text.replace('```json', '').replace('```', '').strip()
         report_data = json.loads(clean_json)
         
@@ -176,6 +193,73 @@ def generate_ats_report(jd_text, pdf_file):
             "critical_keywords": [{"keyword": "System Error", "required_level": "High"}],
             "gaps_and_strategy": [{"category": "Error", "strategy": f"Details: {str(e)}", "criticality": "Critical"}]
         }
+
+# ==========================================
+# PDF Generation Function
+# ==========================================
+def generate_pdf_report(report_data):
+    from fpdf import FPDF
+    
+    def safe_text(text):
+        # Prevent PDF encoding crashes for weird emojis/symbols
+        return str(text).encode('latin-1', 'replace').decode('latin-1')
+
+    pdf = FPDF()
+    pdf.add_page()
+    
+    # Header
+    pdf.set_font("Arial", 'B', 22)
+    pdf.set_text_color(110, 40, 217) # Brand purple
+    pdf.cell(0, 15, "BK.ai ATS Evaluation Report", ln=True, align='C')
+    pdf.ln(5)
+    
+    # Score
+    pdf.set_font("Arial", 'B', 16)
+    pdf.set_text_color(0, 0, 0)
+    pdf.cell(0, 10, f"Overall ATS Match Score: {report_data.get('ats_score', 0)}%", ln=True)
+    pdf.ln(5)
+    
+    # Critical Keywords
+    pdf.set_font("Arial", 'B', 14)
+    pdf.set_text_color(217, 70, 239)
+    pdf.cell(0, 10, "CRITICAL KEYWORDS", ln=True)
+    
+    pdf.set_font("Arial", '', 12)
+    pdf.set_text_color(50, 50, 50)
+    for kw in report_data.get('critical_keywords', []):
+        k = safe_text(kw.get('keyword', 'N/A'))
+        r = safe_text(kw.get('required_level', 'Unknown').upper())
+        pdf.cell(0, 8, f"* {k} (Required: {r})", ln=True)
+    pdf.ln(5)
+    
+    # Strategy & Gaps
+    pdf.set_font("Arial", 'B', 14)
+    pdf.set_text_color(217, 70, 239)
+    pdf.cell(0, 10, "ACTIONABLE STRATEGY & GAPS", ln=True)
+    
+    for gap in report_data.get('gaps_and_strategy', []):
+        cat = safe_text(gap.get('category', 'Detail').upper())
+        crit = safe_text(gap.get('criticality', 'Moderate').upper())
+        strat = safe_text(gap.get('strategy', ''))
+        
+        pdf.set_font("Arial", 'B', 12)
+        if crit == 'CRITICAL':
+            pdf.set_text_color(220, 50, 50) # Red
+        else:
+            pdf.set_text_color(200, 150, 0) # Orange/Yellow
+            
+        pdf.cell(0, 8, f"[{crit}] {cat}:", ln=True)
+        
+        pdf.set_font("Arial", '', 11)
+        pdf.set_text_color(50, 50, 50)
+        pdf.multi_cell(0, 6, strat)
+        pdf.ln(3)
+
+    # Output as bytes for Streamlit downloader
+    try:
+        return pdf.output(dest="S").encode("latin-1")
+    except Exception:
+        return bytes(pdf.output())
 
 # ==========================================
 # Database Setup & Session Memory
@@ -322,27 +406,16 @@ def main():
                 strat_html += '</div>'
                 st.markdown(strat_html, unsafe_allow_html=True)
 
-                # Format the text file download string
-                download_str = "========================================\n"
-                download_str += "       BK.ai ATS Evaluation Report      \n"
-                download_str += "========================================\n\n"
-                download_str += f"Overall ATS Score: {report_data.get('ats_score', 0)}%\n\n"
+                # Generate the PDF bytes dynamically
+                pdf_bytes = generate_pdf_report(report_data)
                 
-                download_str += "--- CRITICAL KEYWORDS ---\n"
-                for kw in report_data.get('critical_keywords', []):
-                    download_str += f"• {kw.get('keyword', 'N/A')} | Required Level: {kw.get('required_level', 'Unknown').upper()}\n"
-                
-                download_str += "\n--- ACTIONABLE STRATEGY & GAPS ---\n"
-                for gap in report_data.get('gaps_and_strategy', []):
-                    download_str += f"• [{gap.get('criticality', 'Moderate').upper()}] {gap.get('category', 'Detail').upper()}:\n  {gap.get('strategy', '')}\n\n"
-                
-                # Download Button Container
-                st.markdown('<div style="margin-top: 2rem;">', unsafe_allow_html=True)
+                # Massive Download Button Container
+                st.markdown('<div style="margin-top: 3rem; margin-bottom: 3rem;">', unsafe_allow_html=True)
                 st.download_button(
-                    label="📥 Download Report as TXT",
-                    data=download_str,
-                    file_name="ATS_Evaluation_Report.txt",
-                    mime="text/plain",
+                    label="📥 DOWNLOAD REPORT (PDF)",
+                    data=pdf_bytes,
+                    file_name="ATS_Evaluation_Report.pdf",
+                    mime="application/pdf",
                     use_container_width=True
                 )
                 st.markdown('</div>', unsafe_allow_html=True)
