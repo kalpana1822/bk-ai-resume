@@ -113,7 +113,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-
 # ==========================================
 # Real AI Brain: Google Gemini Integration
 # ==========================================
@@ -162,7 +161,8 @@ def generate_ats_report(jd_text, pdf_file):
             model='gemini-2.5-flash',
             contents=prompt
         )
-        clean_json = response.text.replace('```json', '').replace('```', '').strip()
+        clean_json = response.text.replace('
+```json', '').replace('```', '').strip()
         report_data = json.loads(clean_json)
         
         if "ats_score" not in report_data: report_data["ats_score"] = "N/A"
@@ -187,6 +187,10 @@ supabase = init_supabase()
 
 if 'user' not in st.session_state:
     st.session_state.user = None
+
+# Store the report data in session state so it persists during downloads
+if 'report_data' not in st.session_state:
+    st.session_state.report_data = None
 
 # ==========================================
 # Sidebar System (The Bouncer)
@@ -222,6 +226,7 @@ with st.sidebar:
         st.success(f"Welcome back,\n{st.session_state.user.email}")
         if st.button("Sign Out"):
             st.session_state.user = None
+            st.session_state.report_data = None
             supabase.auth.sign_out()
             st.rerun()
 
@@ -264,14 +269,16 @@ def main():
                 analyze_button = st.button("🚀 Generate Report", key="ats_analyze_button")
                 st.markdown('</div>', unsafe_allow_html=True)
 
-        report_container = st.empty()
         if analyze_button and jd_input and uploaded_pdf:
             with st.status("🔮 Intelligent Strategist analyzing details...", expanded=True) as status:
                 st.write("🧠 Engaging Gemini AI models...")
-                report_data = generate_ats_report(jd_input, uploaded_pdf)
+                # Save the report to session state so it doesn't clear when download button is clicked
+                st.session_state.report_data = generate_ats_report(jd_input, uploaded_pdf)
                 status.update(label="Analysis finalized!", state="complete", expanded=False)
             
-            with report_container.container():
+        if st.session_state.report_data:
+            report_data = st.session_state.report_data
+            with st.container():
                 st.markdown('<h2 class="section-header" style="margin-top: 4rem;">AI Evaluation Report</h2>', unsafe_allow_html=True)
                 
                 col_score, col_keywords = st.columns([1, 1])
@@ -313,6 +320,31 @@ def main():
                     strat_html += f'<div class="data-point" style="flex-direction: column; align-items: flex-start; gap: 10px; margin-bottom: 10px;"><div style="display: flex; justify-content: space-between; width: 100%;"><span class="data-label">{cat}</span><span class="criticality-tag {crit.lower()}">{crit}</span></div><span style="color: #a1a1aa; font-size: 0.95rem;">{strat}</span></div>'
                 strat_html += '</div>'
                 st.markdown(strat_html, unsafe_allow_html=True)
+
+                # Format the text file download string
+                download_str = "========================================\n"
+                download_str += "       BK.ai ATS Evaluation Report      \n"
+                download_str += "========================================\n\n"
+                download_str += f"Overall ATS Score: {report_data.get('ats_score', 0)}%\n\n"
+                
+                download_str += "--- CRITICAL KEYWORDS ---\n"
+                for kw in report_data.get('critical_keywords', []):
+                    download_str += f"• {kw.get('keyword', 'N/A')} | Required Level: {kw.get('required_level', 'Unknown').upper()}\n"
+                
+                download_str += "\n--- ACTIONABLE STRATEGY & GAPS ---\n"
+                for gap in report_data.get('gaps_and_strategy', []):
+                    download_str += f"• [{gap.get('criticality', 'Moderate').upper()}] {gap.get('category', 'Detail').upper()}:\n  {gap.get('strategy', '')}\n\n"
+                
+                # Download Button Container
+                st.markdown('<div style="margin-top: 2rem;">', unsafe_allow_html=True)
+                st.download_button(
+                    label="📥 Download Report as TXT",
+                    data=download_str,
+                    file_name="ATS_Evaluation_Report.txt",
+                    mime="text/plain",
+                    use_container_width=True
+                )
+                st.markdown('</div>', unsafe_allow_html=True)
 
         # ==========================================
         # The Pricing Plans
