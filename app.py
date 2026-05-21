@@ -7,7 +7,7 @@ import json
 # Page Configuration & Custom CSS
 # ==========================================
 st.set_page_config(
-    page_title="BK.AI | Intelligent Resume Strategist",
+    page_title="BK.ai | Intelligent Resume Strategist",
     page_icon="✨",
     layout="wide",
     initial_sidebar_state="expanded",
