@@ -41,8 +41,8 @@ st.markdown("""
         margin-bottom: 0px;
     }
     
-    /* Login Form Inputs */
-    [data-testid="stSidebar"] input {
+    /* Login Form Inputs & Input Elements */
+    [data-testid="stSidebar"] input, .stTextArea textarea, .stFileUploader > div > div > div > button {
         background-color: rgba(0, 0, 0, 0.5) !important;
         color: white !important;
         border: 1px solid rgba(168, 129, 255, 0.3) !important;
@@ -134,7 +134,7 @@ def generate_ats_report(jd_text, pdf_file):
     try:
         client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
     except Exception as e:
-        st.error("⚠️ API Key missing.")
+        st.error("⚠️ API Key missing from secrets.")
         st.stop()
 
     prompt = f"""
@@ -173,23 +173,22 @@ def generate_ats_report(jd_text, pdf_file):
         if "gaps_and_strategy" not in report_data: report_data["gaps_and_strategy"] = []
         return report_data
     except Exception as e:
+        # NOW it will print the EXACT reason it failed in the strategy box!
         return {
             "ats_score": 0,
             "critical_keywords": [{"keyword": "System Error", "required_level": "High"}],
-            "gaps_and_strategy": [{"category": "Error", "strategy": "Please try scanning again.", "criticality": "Critical"}]
+            "gaps_and_strategy": [{"category": "Error", "strategy": f"Details: {str(e)}", "criticality": "Critical"}]
         }
 
 # ==========================================
 # Database Setup & Session Memory
 # ==========================================
-# 1. Connect to Supabase
 @st.cache_resource
 def init_supabase():
     return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
 
 supabase = init_supabase()
 
-# 2. Setup the App's "Memory" for the User
 if 'user' not in st.session_state:
     st.session_state.user = None
 
@@ -201,7 +200,6 @@ with st.sidebar:
     st.caption("v2.1.0 | Enterprise Edition")
     st.divider()
     
-    # If the user is NOT logged in, show the login form
     if st.session_state.user is None:
         st.markdown("### 🔐 Access Portal")
         auth_email = st.text_input("Email Address")
@@ -213,9 +211,8 @@ with st.sidebar:
                 try:
                     response = supabase.auth.sign_in_with_password({"email": auth_email, "password": auth_password})
                     st.session_state.user = response.user
-                    st.rerun() # Refresh the page immediately
+                    st.rerun()
                 except Exception as e:
-                    # NEW: This will tell you exactly why it's failing!
                     st.error(f"Error: {str(e)}") 
         with col2:
             if st.button("Sign Up"):
@@ -223,10 +220,7 @@ with st.sidebar:
                     response = supabase.auth.sign_up({"email": auth_email, "password": auth_password})
                     st.success("Account created! Please Sign In.")
                 except Exception as e:
-                    # NEW: This will tell you exactly why it's failing!
                     st.error(f"Error: {str(e)}") 
-                    
-    # If the user IS logged in, show their profile and logout button
     else:
         st.markdown("### 👤 User Profile")
         st.success(f"Welcome back,\n{st.session_state.user.email}")
@@ -251,11 +245,9 @@ def main():
     </div>
     """, unsafe_allow_html=True)
 
-    # Protect the app: Only show the scanner if the user is logged in
     if st.session_state.user is None:
         st.warning("🔒 Please Sign In or Sign Up using the sidebar menu to access the AI Strategist.")
     
-    # If logged in, show the full app!
     if st.session_state.user is not None:
         st.markdown('<h2 class="section-header" style="text-align: center; display: block; margin-top: 4rem;">Optimize Your Strategy</h2>', unsafe_allow_html=True)
         st.markdown('<div class="styled-card-row">', unsafe_allow_html=True)
@@ -276,7 +268,6 @@ def main():
                 st.markdown('</div></div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
-        # Output Section
         report_container = st.empty()
         if analyze_button and jd_input and uploaded_pdf:
             with st.status("🔮 Intelligent Strategist analyzing details...", expanded=True) as status:
@@ -306,6 +297,56 @@ def main():
                 for gap in report_data.get("gaps_and_strategy", []):
                     st.markdown(f'<div class="data-point" style="flex-direction: column; align-items: flex-start; gap: 10px; margin-bottom: 10px;"><div style="display: flex; justify-content: space-between; width: 100%;"><span class="data-label">{gap.get("category", "Detail").upper()}</span><span class="criticality-tag {gap.get("criticality", "Moderate").lower()}">{gap.get("criticality", "Moderate")}</span></div><span style="color: #a1a1aa; font-size: 0.95rem;">{gap.get("strategy", "")}</span></div>', unsafe_allow_html=True)
                 st.markdown('</div></div>', unsafe_allow_html=True) 
+
+        # ==========================================
+        # The Pricing Plans (Restored!)
+        # ==========================================
+        st.markdown('<div style="text-align: center; margin-top: 6rem;"><h2 class="section-header">Discover our pricing plans</h2><p class="card-description">Pick a plan to grow your brand and business</p></div>', unsafe_allow_html=True)
+        st.markdown('<div class="styled-card-row">', unsafe_allow_html=True)
+        
+        col_p1, col_p2, col_p3 = st.columns([1,1,1])
+        
+        with col_p1:
+            st.markdown('<div class="styled-card">', unsafe_allow_html=True)
+            st.markdown('<h3 class="card-title">Basic</h3><div class="card-description">Free starter performance tools.</div>', unsafe_allow_html=True)
+            st.markdown('<div style="font-size: 2.5rem; font-weight: 800; color: #ffffff; margin-bottom: 2rem;">$0<span style="font-size: 1rem; color: #a1a1aa; font-weight: 500;">/mo</span></div>', unsafe_allow_html=True)
+            st.markdown('<div class="mock-panel-group" style="margin-bottom: 2rem;">', unsafe_allow_html=True)
+            render_data_point("Basic Formatting Checks", "Included")
+            render_data_point("Monthly ATS Scans", "5 Scans")
+            render_data_point("Community Support", "Included")
+            st.markdown('</div>', unsafe_allow_html=True)
+            if st.button("Current Plan", key="btn_basic"):
+                st.info("You are currently using the Free Basic tier.")
+            st.markdown('</div>', unsafe_allow_html=True)
+            
+        with col_p2:
+            st.markdown('<div class="styled-card" style="border-color: rgba(217, 70, 239, 0.4); box-shadow: 0 0 30px rgba(217, 70, 239, 0.1);">', unsafe_allow_html=True)
+            st.markdown('<h3 class="card-title">Premium</h3><div class="card-description">Detailed performance analysis.</div>', unsafe_allow_html=True)
+            st.markdown('<div style="font-size: 2.5rem; font-weight: 800; color: #ffffff; margin-bottom: 2rem;">$9.99<span style="font-size: 1rem; color: #a1a1aa; font-weight: 500;">/mo</span></div>', unsafe_allow_html=True)
+            st.markdown('<div class="mock-panel-group" style="margin-bottom: 2rem;">', unsafe_allow_html=True)
+            render_data_point("Advanced NLP Analysis", "Included")
+            render_data_point("Monthly ATS Scans", "Unlimited")
+            render_data_point("Keyword Prioritization", "Included")
+            render_data_point("Priority Email Support", "Included")
+            st.markdown('</div>', unsafe_allow_html=True)
+            if st.button("Upgrade to Premium", key="btn_prem"):
+                st.success("Redirecting to secure checkout... 💳")
+                st.balloons()
+            st.markdown('</div>', unsafe_allow_html=True)
+            
+        with col_p3:
+            st.markdown('<div class="styled-card">', unsafe_allow_html=True)
+            st.markdown('<h3 class="card-title">Enterprise</h3><div class="card-description">Full structural strategizing.</div>', unsafe_allow_html=True)
+            st.markdown('<div style="font-size: 2.5rem; font-weight: 800; color: #ffffff; margin-bottom: 2rem;">$99.0<span style="font-size: 1rem; color: #a1a1aa; font-weight: 500;">/mo</span></div>', unsafe_allow_html=True)
+            st.markdown('<div class="mock-panel-group" style="margin-bottom: 2rem;">', unsafe_allow_html=True)
+            render_data_point("Custom ATS Rulesets", "Included")
+            render_data_point("API Integration Access", "Included")
+            render_data_point("Dedicated Account Manager", "Included")
+            st.markdown('</div>', unsafe_allow_html=True)
+            if st.button("Contact Sales", key="btn_ent"):
+                st.toast("Thank you! Our enterprise team will email you shortly.", icon="📩")
+            st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
     # Footer
     st.markdown('<div style="text-align: center; color: #71717a; padding: 2rem; border-top: 1px solid rgba(255,255,255,0.05); margin-top: 4rem;">© 2026 BK.ai. Engineered by Kalpana.</div>', unsafe_allow_html=True)
